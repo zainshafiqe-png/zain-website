@@ -8,13 +8,16 @@
 body{font-family:Arial;background:#f1f5f9;margin:0;padding:12px}
 h1{color:#0d47a1;text-align:center;font-size:22px}
 .box{background:#fff;border-radius:12px;padding:12px;margin:10px auto;max-width:420px;box-shadow:0 1px 6px rgba(0,0,0,.15)}
-input{width:100%;box-sizing:border-box;padding:10px;margin:4px 0;font-size:16px;border:1px solid #bbb;border-radius:8px}
+input,select{width:100%;box-sizing:border-box;padding:10px;margin:4px 0;font-size:16px;border:1px solid #bbb;border-radius:8px;background:#fff}
 button{background:#0d47a1;color:#fff;border:0;border-radius:8px;padding:10px 14px;font-size:15px;margin:3px 2px}
 button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#757575}
 .low{border-left:6px solid #c62828} .ok{border-left:6px solid #2e7d32}
 .n{font-size:18px;font-weight:bold}
 .s{color:#555;font-size:14px}
 #buy{border:2px solid #c62828}
+.row{display:flex;gap:10px}
+.th{width:64px;height:64px;border-radius:8px;object-fit:cover;background:#e3e8ef;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666;flex-shrink:0}
+.tsel{width:auto;padding:4px;font-size:14px;margin:2px 0}
 </style>
 </head>
 <body>
@@ -23,30 +26,56 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 <div class="box" id="buy"></div>
 <div class="box">
 <input id="nm" placeholder="Dawai ka naam">
+<select id="ty"></select>
 <input id="qt" type="number" placeholder="Kitni aayi (tadaad)">
 <input id="bp" type="number" placeholder="Khareed price (1 ki)">
 <input id="sp" type="number" placeholder="Bechne ki price (1 ki)">
 <input id="ex" type="date">
+<div class="s">Photo (zaroori nahi):</div>
+<input id="ph" type="file" accept="image/*">
 <button onclick="addMed()">Dawai Add Karo</button>
 </div>
-<div class="box"><input id="q" placeholder="Dawai dhoondo..." oninput="show()"></div>
+<div class="box">
+<input id="q" placeholder="Dawai dhoondo..." oninput="show()">
+<select id="ft" onchange="show()"></select>
+</div>
 <div id="list"></div>
 <div class="box">
 <button class="x" onclick="backup()">Backup Copy</button>
 <button class="x" onclick="restore()">Backup Wapas Lao</button>
 </div>
+<input type="file" id="pp" accept="image/*" style="display:none" onchange="setPic(this)">
 <script>
-var LOW=10;
+var LOW=10,cur=0;
+var TY=['Syrup','Tablet','Capsule','Injection','Cream','Drops','Other'];
 var D=[];
 try{D=JSON.parse(localStorage.getItem('stock')||'[]')}catch(e){D=[]}
-function save(){try{localStorage.setItem('stock',JSON.stringify(D))}catch(e){alert('Save nahi hua')}show()}
+function save(){try{localStorage.setItem('stock',JSON.stringify(D))}catch(e){alert('Save nahi hua (jagah bhar gayi ho sakti hai)')}show()}
 function v(i){return document.getElementById(i).value}
 function esc(s){return String(s).replace(/</g,'&lt;')}
+function opts(sel){return TY.map(function(t){return '<option'+(t==sel?' selected':'')+'>'+t+'</option>'}).join('')}
+document.getElementById('ty').innerHTML=opts('Tablet');
+document.getElementById('ft').innerHTML='<option value="">Sab types</option>'+opts('');
+function shrink(f,cb){
+ var r=new FileReader();
+ r.onload=function(){var im=new Image();
+  im.onload=function(){var s=200/Math.max(im.width,im.height);if(s>1)s=1;
+   var c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+   c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',0.6))};
+  im.onerror=function(){cb('')};im.src=r.result};
+ r.readAsDataURL(f)}
 function addMed(){
  var n=v('nm').trim(); if(!n){alert('Naam likho');return}
- D.push({n:n,a:+v('qt')||0,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex')});
- ['nm','qt','bp','sp','ex'].forEach(function(i){document.getElementById(i).value=''});
- save()}
+ var f=document.getElementById('ph').files[0];
+ function go(img){
+  D.push({n:n,t:v('ty'),a:+v('qt')||0,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex'),img:img||''});
+  ['nm','qt','bp','sp','ex','ph'].forEach(function(i){document.getElementById(i).value=''});
+  save()}
+ if(f)shrink(f,go);else go('')}
+function pic(i){cur=i;document.getElementById('pp').click()}
+function setPic(el){var f=el.files[0];if(!f)return;
+ shrink(f,function(d){if(d){D[cur].img=d;save()}});el.value=''}
+function setT(i,t){D[i].t=t;save()}
 function sell(i){var k=+prompt('Kitni bik gayi?','1'); if(!k||k<0)return;
  if(k>D[i].a-D[i].s){alert('Itna stock nahi hai!');return}
  D[i].s+=k;
@@ -56,14 +85,19 @@ function sell(i){var k=+prompt('Kitni bik gayi?','1'); if(!k||k<0)return;
 function add(i){var k=+prompt('Kitni nayi aayi?'); if(!k||k<0)return; D[i].a+=k; save()}
 function del(i){if(confirm(D[i].n+' delete karni hai?')){D.splice(i,1);save()}}
 function show(){
- var q=v('q').toLowerCase(),h='',buy='',nb=0,low=0,val=0,today=new Date().toISOString().slice(0,10);
+ var q=v('q').toLowerCase(),ft=v('ft'),h='',buy='',nb=0,low=0,val=0,today=new Date().toISOString().slice(0,10);
  D.forEach(function(m,i){
   var r=m.a-m.s; val+=r*m.b;
   if(r<=LOW){low++;nb++;
-   buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> | bachi: '+r+'<br><button class="g" onclick="add('+i+')">Khareed Liya</button></div>'}
+   buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> ('+(m.t||'Other')+') | bachi: '+r+'<br><button class="g" onclick="add('+i+')">Khareed Liya</button></div>'}
   if(m.n.toLowerCase().indexOf(q)<0)return;
+  if(ft&&(m.t||'Other')!=ft)return;
   var exp=m.e&&m.e<today?' <b style="color:#c62828">(EXPIRED)</b>':(m.e?' | Expiry: '+m.e:'');
-  h+='<div class="box '+(r<=LOW?'low':'ok')+'"><div class="n">'+esc(m.n)+'</div>'
+  var th=m.img?'<img class="th" src="'+m.img+'" onclick="pic('+i+')">':'<div class="th" onclick="pic('+i+')">+ Photo</div>';
+  h+='<div class="box '+(r<=LOW?'low':'ok')+'"><div class="row">'+th+'<div style="flex:1">'
+  +'<div class="n">'+esc(m.n)+'</div>'
+  +'<select class="tsel" onchange="setT('+i+',this.value)">'+opts(m.t||'Other')+'</select>'
+  +'</div></div>'
   +'<div class="s">Aayi: '+m.a+' | Bik gayi: '+m.s+' | <b>Bachi: '+r+'</b>'+(r<=LOW?' (KAM HAI)':'')+'</div>'
   +'<div class="s">Khareed: Rs.'+m.b+' | Bechne: Rs.'+m.p+exp+'</div>'
   +'<button class="g" onclick="sell('+i+')">Becho</button><button onclick="add('+i+')">Stock Add</button><button class="r" onclick="del('+i+')">Delete</button></div>'});
@@ -77,4 +111,4 @@ function restore(){var t=prompt('Backup yahan paste karo:'); if(!t)return;
 show();
 </script>
 </body>
-</html>
+ </html>
