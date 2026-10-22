@@ -15,21 +15,26 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 .n{font-size:18px;font-weight:bold}
 .s{color:#555;font-size:14px}
 #buy{border:2px solid #c62828}
+#day{border:2px solid #2e7d32}
 .row{display:flex;gap:10px}
 .th{width:64px;height:64px;border-radius:8px;object-fit:cover;background:#e3e8ef;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666;flex-shrink:0}
 .tsel{width:auto;padding:4px;font-size:14px;margin:2px 0}
+#md{display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9}
 </style>
 </head>
 <body>
 <h1>Medical Store Stock</h1>
 <div class="box" id="sum"></div>
+<div class="box" id="day"></div>
 <div class="box" id="buy"></div>
 <div class="box">
 <input id="nm" placeholder="Dawai ka naam">
-<select id="ty"></select>
-<input id="qt" type="number" placeholder="Kitni aayi (tadaad)">
-<input id="bp" type="number" placeholder="Khareed price (1 ki)">
-<input id="sp" type="number" placeholder="Bechne ki price (1 ki)">
+<select id="ty" onchange="tyChg()"></select>
+<input id="qb" type="number" placeholder="Kitne box aaye">
+<input id="pb" type="number" placeholder="Ek box mein kitne patte">
+<input id="tp" type="number" placeholder="Ek patte mein kitni tablet">
+<input id="bp" type="number" placeholder="Khareed price (1 patta ki)">
+<input id="sp" type="number" placeholder="Bechne ki price (1 patta ki)">
 <input id="ex" type="date">
 <div class="s">Photo (zaroori nahi):</div>
 <input id="ph" type="file" accept="image/*">
@@ -41,21 +46,55 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 </div>
 <div id="list"></div>
 <div class="box">
+<button class="x" onclick="undoL()">Aakhri Entry Undo</button><br>
 <button class="x" onclick="backup()">Backup Copy</button>
 <button class="x" onclick="restore()">Backup Wapas Lao</button>
 </div>
 <input type="file" id="pp" accept="image/*" style="display:none" onchange="setPic(this)">
+<div id="md"><div class="box" style="margin-top:80px">
+<div class="n" id="mt"></div>
+<div class="s" id="mi"></div>
+<div id="mf"></div>
+<button class="g" onclick="okM()">OK</button>
+<button class="x" onclick="closeM()">Cancel</button>
+</div></div>
 <script>
-var LOW=10,cur=0;
+var LOW=10,cur=0,qm='';
 var TY=['Syrup','Tablet','Capsule','Injection','Cream','Drops','Other'];
-var D=[];
+var D=[],L=[];
 try{D=JSON.parse(localStorage.getItem('stock')||'[]')}catch(e){D=[]}
-function save(){try{localStorage.setItem('stock',JSON.stringify(D))}catch(e){alert('Save nahi hua (jagah bhar gayi ho sakti hai)')}show()}
+try{L=JSON.parse(localStorage.getItem('stocklog')||'[]')}catch(e){L=[]}
+function nid(){return 'm'+Date.now()+'_'+Math.floor(Math.random()*1000000)}
+function td(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
+function mig(){D.forEach(function(m){if(!m.ppb||m.ppb<1)m.ppb=1;if(!m.tpp||m.tpp<1)m.tpp=1;if(!m.t)m.t='Other';if(!m.id)m.id=nid()})}
+mig();
+function save(){try{localStorage.setItem('stock',JSON.stringify(D));localStorage.setItem('stocklog',JSON.stringify(L))}catch(e){alert('Save nahi hua (jagah bhar gayi ho sakti hai)')}show()}
 function v(i){return document.getElementById(i).value}
+function gn(i){var e=document.getElementById(i);return e?(+e.value||0):0}
 function esc(s){return String(s).replace(/</g,'&lt;')}
+function rs(x){return 'Rs. '+Math.round(x)}
+function isTab(t){return t=='Tablet'||t=='Capsule'}
+function mid(m){return isTab(m.t)?'patta':'piece'}
+function base(m){return m.t=='Capsule'?'capsule':'tablet'}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 function opts(sel){return TY.map(function(t){return '<option'+(t==sel?' selected':'')+'>'+t+'</option>'}).join('')}
+function fmt(u,m){
+ var bx=m.ppb*m.tpp,b=0,rem=u;
+ if(bx>1){b=Math.floor(u/bx);rem=u%bx}
+ var p=Math.floor(rem/m.tpp),t=rem%m.tpp,o=[];
+ if(b>0)o.push(b+' box');
+ if(p>0)o.push(p+' '+mid(m));
+ if(t>0)o.push(t+' '+base(m));
+ return o.length?o.join(', '):'0'}
+function tyChg(){
+ var tab=isTab(v('ty'));
+ document.getElementById('tp').style.display=tab?'':'none';
+ document.getElementById('pb').placeholder=tab?'Ek box mein kitne patte':'Ek box mein kitne piece (box nahi to 1)';
+ document.getElementById('bp').placeholder='Khareed price (1 '+(tab?'patta':'piece')+' ki)';
+ document.getElementById('sp').placeholder='Bechne ki price (1 '+(tab?'patta':'piece')+' ki)'}
 document.getElementById('ty').innerHTML=opts('Tablet');
 document.getElementById('ft').innerHTML='<option value="">Sab types</option>'+opts('');
+tyChg();
 function shrink(f,cb){
  var r=new FileReader();
  r.onload=function(){var im=new Image();
@@ -64,50 +103,113 @@ function shrink(f,cb){
    c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',0.6))};
   im.onerror=function(){cb('')};im.src=r.result};
  r.readAsDataURL(f)}
+function logE(k,m,u){
+ var um=u/m.tpp;
+ L.push({d:td(),k:k,id:m.id,n:m.n,q:fmt(u,m),u:u,
+  sale:k=='s'?um*m.p:0,
+  profit:k=='s'?um*(m.p-m.b):0,
+  cost:k=='a'?um*m.b:0})}
 function addMed(){
  var n=v('nm').trim(); if(!n){alert('Naam likho');return}
+ var t=v('ty'),tab=isTab(t),pb=+v('pb')||1,tp=tab?(+v('tp')||1):1,qb=+v('qb')||0;
  var f=document.getElementById('ph').files[0];
  function go(img){
-  D.push({n:n,t:v('ty'),a:+v('qt')||0,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex'),img:img||''});
-  ['nm','qt','bp','sp','ex','ph'].forEach(function(i){document.getElementById(i).value=''});
+  var m={id:nid(),n:n,t:t,ppb:pb,tpp:tp,a:qb*pb*tp,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex'),img:img||''};
+  D.push(m);
+  if(m.a>0)logE('a',m,m.a);
+  ['nm','qb','pb','tp','bp','sp','ex','ph'].forEach(function(i){document.getElementById(i).value=''});
   save()}
  if(f)shrink(f,go);else go('')}
 function pic(i){cur=i;document.getElementById('pp').click()}
 function setPic(el){var f=el.files[0];if(!f)return;
  shrink(f,function(d){if(d){D[cur].img=d;save()}});el.value=''}
-function setT(i,t){D[i].t=t;save()}
-function sell(i){var k=+prompt('Kitni bik gayi?','1'); if(!k||k<0)return;
- if(k>D[i].a-D[i].s){alert('Itna stock nahi hai!');return}
- D[i].s+=k;
- var r=D[i].a-D[i].s;
- save();
- if(r<=0)alert(D[i].n+' khatam ho gayi. Khareedni Hai list mein aa gayi.')}
-function add(i){var k=+prompt('Kitni nayi aayi?'); if(!k||k<0)return; D[i].a+=k; save()}
+function setT(i,t){D[i].t=t;if(!isTab(t)&&D[i].tpp>1){D[i].a=Math.round(D[i].a/D[i].tpp);D[i].s=Math.round(D[i].s/D[i].tpp);D[i].tpp=1}save()}
+function openQ(i,mode){
+ cur=i;qm=mode;var m=D[i],bx=m.ppb*m.tpp,f='';
+ if(bx>1)f+='<input id="q1" type="number" min="0" placeholder="Box">';
+ f+='<input id="q2" type="number" min="0" placeholder="'+cap(mid(m))+'">';
+ if(m.tpp>1)f+='<input id="q3" type="number" min="0" placeholder="'+cap(base(m))+'">';
+ document.getElementById('mt').innerHTML=(mode=='sell'?'Kitni bik gayi? ':'Kitna maal aaya? ')+esc(m.n);
+ document.getElementById('mi').innerHTML='Abhi bachi: '+fmt(m.a-m.s,m);
+ document.getElementById('mf').innerHTML=f;
+ document.getElementById('md').style.display='block'}
+function closeM(){document.getElementById('md').style.display='none'}
+function okM(){
+ var m=D[cur],bx=m.ppb*m.tpp;
+ var u=gn('q1')*bx+gn('q2')*m.tpp+gn('q3');
+ if(u<=0){alert('Tadaad likho');return}
+ if(qm=='sell'){
+  if(u>m.a-m.s){alert('Itna stock nahi hai!');return}
+  m.s+=u;logE('s',m,u)}
+ else{m.a+=u;logE('a',m,u)}
+ closeM();save();
+ if(m.a-m.s<=0)alert(m.n+' khatam ho gayi. Khareedni Hai list mein aa gayi.')}
+function sell(i){openQ(i,'sell')}
+function add(i){openQ(i,'add')}
+function undoL(){
+ if(!L.length){alert('Koi entry nahi hai');return}
+ var e=L[L.length-1];
+ var m=D.filter(function(x){return x.id==e.id})[0];
+ if(!m){alert('Wo dawai delete ho chuki hai');L.pop();save();return}
+ if(!confirm('Undo karna hai? '+(e.k=='s'?'Becha: ':'Aaya: ')+e.n+' '+e.q))return;
+ if(e.k=='s'){m.s=Math.max(0,m.s-e.u)}
+ else{if(m.a-e.u<m.s){alert('Undo nahi ho sakta, ye maal bik chuka hai');return}m.a-=e.u}
+ L.pop();save()}
+function packSet(i){
+ var m=D[i],tab=isTab(m.t);
+ var pb=+prompt('Ek box mein kitne '+mid(m)+'?',m.ppb);
+ if(!pb||pb<1)return;
+ var tp=m.tpp;
+ if(tab){tp=+prompt('Ek patte mein kitni '+base(m)+'?',m.tpp);if(!tp||tp<1)return}
+ if(tp!=m.tpp){m.a=Math.round(m.a*tp/m.tpp);m.s=Math.round(m.s*tp/m.tpp)}
+ m.ppb=pb;m.tpp=tp;save()}
 function del(i){if(confirm(D[i].n+' delete karni hai?')){D.splice(i,1);save()}}
+function dayBox(){
+ var he=document.getElementById('hd'),d=(he&&he.value)?he.value:td();
+ var ss=0,pp=0,cc=0,sl='',al='';
+ L.forEach(function(e){
+  if(e.d!=d)return;
+  if(e.k=='s'){ss+=e.sale;pp+=e.profit;sl+=esc(e.n)+': '+e.q+'<br>'}
+  else{cc+=e.cost;al+=esc(e.n)+': '+e.q+'<br>'}});
+ var pc=pp<0?'#c62828':'#2e7d32';
+ document.getElementById('day').innerHTML=
+  '<div class="n">'+(d==td()?'Aaj ka hisaab':'Hisaab: '+d)+'</div>'
+  +'<input id="hd" type="date" value="'+d+'" onchange="show()">'
+  +'<div style="margin:6px 0">Sale: <b>'+rs(ss)+'</b></div>'
+  +'<div style="margin:6px 0">Profit: <b style="color:'+pc+'">'+rs(pp)+'</b></div>'
+  +'<div style="margin:6px 0">Stock add hua (khareed ke hisaab se): <b>'+rs(cc)+'</b></div>'
+  +(sl?'<div class="s" style="margin-top:8px"><b>Bika:</b><br>'+sl+'</div>':'')
+  +(al?'<div class="s" style="margin-top:8px"><b>Aaya:</b><br>'+al+'</div>':'')}
 function show(){
- var q=v('q').toLowerCase(),ft=v('ft'),h='',buy='',nb=0,low=0,val=0,today=new Date().toISOString().slice(0,10);
+ var q=v('q').toLowerCase(),ft=v('ft'),h='',buy='',nb=0,low=0,val=0,today=td();
  D.forEach(function(m,i){
-  var r=m.a-m.s; val+=r*m.b;
-  if(r<=LOW){low++;nb++;
-   buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> ('+(m.t||'Other')+') | bachi: '+r+'<br><button class="g" onclick="add('+i+')">Khareed Liya</button></div>'}
+  var r=m.a-m.s,isLow=(r/m.tpp)<=LOW; val+=r/m.tpp*m.b;
+  if(isLow){low++;nb++;
+   buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> ('+(m.t||'Other')+') | bachi: '+fmt(r,m)+'<br><button class="g" onclick="add('+i+')">Khareed Liya</button></div>'}
   if(m.n.toLowerCase().indexOf(q)<0)return;
   if(ft&&(m.t||'Other')!=ft)return;
   var exp=m.e&&m.e<today?' <b style="color:#c62828">(EXPIRED)</b>':(m.e?' | Expiry: '+m.e:'');
   var th=m.img?'<img class="th" src="'+m.img+'" onclick="pic('+i+')">':'<div class="th" onclick="pic('+i+')">+ Photo</div>';
-  h+='<div class="box '+(r<=LOW?'low':'ok')+'"><div class="row">'+th+'<div style="flex:1">'
+  var pk=(m.ppb*m.tpp>1)?'<div class="s">Pack: 1 box = '+m.ppb+' '+mid(m)+(m.tpp>1?', 1 '+mid(m)+' = '+m.tpp+' '+base(m):'')+'</div>':'';
+  h+='<div class="box '+(isLow?'low':'ok')+'"><div class="row">'+th+'<div style="flex:1">'
   +'<div class="n">'+esc(m.n)+'</div>'
   +'<select class="tsel" onchange="setT('+i+',this.value)">'+opts(m.t||'Other')+'</select>'
   +'</div></div>'
-  +'<div class="s">Aayi: '+m.a+' | Bik gayi: '+m.s+' | <b>Bachi: '+r+'</b>'+(r<=LOW?' (KAM HAI)':'')+'</div>'
-  +'<div class="s">Khareed: Rs.'+m.b+' | Bechne: Rs.'+m.p+exp+'</div>'
-  +'<button class="g" onclick="sell('+i+')">Becho</button><button onclick="add('+i+')">Stock Add</button><button class="r" onclick="del('+i+')">Delete</button></div>'});
+  +'<div class="s">Aayi: '+fmt(m.a,m)+'</div><div class="s">Bik gayi: '+fmt(m.s,m)+'</div>'
+  +'<div class="s"><b>Bachi: '+fmt(r,m)+'</b>'+(isLow?' (KAM HAI)':'')+'</div>'
+  +pk
+  +'<div class="s">Khareed: Rs.'+m.b+' | Bechne: Rs.'+m.p+' (1 '+mid(m)+')'+exp+'</div>'
+  +'<button class="g" onclick="sell('+i+')">Becho</button><button onclick="add('+i+')">Stock Add</button><button class="x" onclick="packSet('+i+')">Pack</button><button class="r" onclick="del('+i+')">Delete</button></div>'});
  document.getElementById('list').innerHTML=h;
  document.getElementById('buy').innerHTML=nb?'<div class="n" style="color:#c62828">Khareedni Hai ('+nb+')</div>'+buy:'<div class="s">Sab stock theek hai ✅</div>';
- document.getElementById('sum').innerHTML='Total dawaiyan: <b>'+D.length+'</b> | Kam stock: <b style="color:#c62828">'+low+'</b><br>Bacha hua stock (khareed ke hisaab se): <b>Rs. '+val+'</b>'}
-function backup(){var t=JSON.stringify(D);
+ document.getElementById('sum').innerHTML='Total dawaiyan: <b>'+D.length+'</b> | Kam stock: <b style="color:#c62828">'+low+'</b><br>Bacha hua stock (khareed ke hisaab se): <b>'+rs(val)+'</b>';
+ dayBox()}
+function backup(){var t=JSON.stringify({D:D,L:L});
  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){alert('Backup copy ho gaya. Kisi note ya WhatsApp pe paste karke save kar lo.')})}else{prompt('Ye copy karo:',t)}}
 function restore(){var t=prompt('Backup yahan paste karo:'); if(!t)return;
- try{D=JSON.parse(t);save()}catch(e){alert('Galat backup')}}
+ try{var o=JSON.parse(t);
+  if(Array.isArray(o)){D=o}else{D=o.D||[];L=o.L||[]}
+  mig();save()}catch(e){alert('Galat backup')}}
 show();
 </script>
 </body>
