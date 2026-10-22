@@ -1,38 +1,42 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Meri Pehli Website</title>
-    <style>
-      body {
-        background-color: #fff3e0;
-        font-family: Arial;
-        text-align: center;
-      }
-      h1 {
-        color: darkblue;
-      }
-      p {
-        color: green;
-        font-size: 20px;
-      }
-      button {
-        background-color: darkblue;
-        color: white;
-        padding: 12px 24px;
-        border: none;
-        border-radius: 8px;
-        font-size: 18px;
-      }
-      img {
-        border-radius: 12px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Salaam, main Zain hoon!</h1>
-    <p>Ye meri pehli website hai.</p>
-    <img src="https://picsum.photos/300" alt="Meri tasveer" width="300">
-    <br><br>
-    <button>Mujhse Rabta Karo</button>
-  </body>
-      </html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zain ki Dukaan</title>
+<style>
+body { background-color: #fff3e0; font-family: Arial; text-align: center; margin: 0; padding: 16px; }
+h1 { color: darkblue; }
+.card { background: white; border-radius: 12px; padding: 12px; margin: 16px auto; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.card img { width: 100%; border-radius: 12px; }
+.price { color: green; font-size: 20px; font-weight: bold; }
+a.btn { display: inline-block; background-color: darkblue; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 18px; }
+</style>
+</head>
+<body>
+<h1>Zain ki Dukaan</h1>
+<p>Products dekho aur WhatsApp pe order karo</p>
+
+<div class="card">
+<img src="https://picsum.photos/300?1">
+<h3>Product 1</h3>
+<p class="price">Rs. 1000</p>
+<a class="btn" href="https://wa.me/923276787872?text=Product%201%20order%20karna%20hai">Order Karo</a>
+</div>
+
+<div class="card">
+<img src="https://picsum.photos/300?2">
+<h3>Product 2</h3>
+<p class="price">Rs. 1500</p>
+<a class="btn" href="https://wa.me/923276787872?text=Product%202%20order%20karna%20hai">Order Karo</a>
+</div>
+
+<div class="card">
+<img src="https://picsum.photos/300?3">
+<h3>Product 3</h3>
+<p class="price">Rs. 2000</p>
+<a class="btn" href="https://wa.me/923276787872?text=Product%203%20order%20karna%20hai">Order Karo</a>
+</div>
+
+</body>
+</html>
