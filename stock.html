@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Medical Stock</title>
+<title>Saad Medical Store - Stock</title>
 <style>
 body{font-family:Arial;background:#f1f5f9;margin:0;padding:12px}
 h1{color:#0d47a1;text-align:center;font-size:22px}
@@ -14,8 +14,7 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 .low{border-left:6px solid #c62828} .ok{border-left:6px solid #2e7d32}
 .n{font-size:18px;font-weight:bold}
 .s{color:#555;font-size:14px}
-#buy{border:2px solid #c62828}
-#day{border:2px solid #2e7d32}
+#buy{border:2px solid #c62828} #day{border:2px solid #2e7d32}
 .row{display:flex;gap:10px}
 .th{width:64px;height:64px;border-radius:8px;object-fit:cover;background:#e3e8ef;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666;flex-shrink:0}
 .tsel{width:auto;padding:4px;font-size:14px;margin:2px 0}
@@ -23,11 +22,34 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 </style>
 </head>
 <body>
+
+<div id="login" class="box" style="margin-top:60px">
+<h1>Saad Medical Store</h1>
+<input id="em" type="email" placeholder="Email">
+<input id="pw" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+<div id="lerr" class="s"></div>
+</div>
+
+<div id="app" style="display:none">
+<div class="box"><b id="who"></b> <button class="x" onclick="logout()">Logout</button></div>
 <h1>Medical Store Stock</h1>
 <div class="box" id="sum"></div>
 <div class="box" id="day"></div>
+<div class="box" id="exp"></div>
 <div class="box" id="buy"></div>
+
+<div class="box" id="adm" style="display:none">
+<b>Staff banao</b>
+<input id="sn" placeholder="Staff ka naam">
+<input id="se" type="email" placeholder="Staff ka email">
+<input id="sps" type="password" placeholder="Password (6 ya zyada)">
+<button onclick="addStaff()">Staff Banao</button>
+<div id="stf"></div>
+</div>
+
 <div class="box">
+<div class="n">Nayi dawai / stock</div>
 <input id="nm" placeholder="Dawai ka naam">
 <select id="ty" onchange="tyChg()"></select>
 <input id="qb" type="number" placeholder="Kitne box aaye">
@@ -40,16 +62,21 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 <input id="ph" type="file" accept="image/*">
 <button onclick="addMed()">Dawai Add Karo</button>
 </div>
+
 <div class="box">
 <input id="q" placeholder="Dawai dhoondo..." oninput="show()">
 <select id="ft" onchange="show()"></select>
 </div>
 <div id="list"></div>
-<div class="box">
+
+<div class="box" id="tools" style="display:none">
 <button class="x" onclick="undoL()">Aakhri Entry Undo</button><br>
 <button class="x" onclick="backup()">Backup Copy</button>
-<button class="x" onclick="restore()">Backup Wapas Lao</button>
+<button class="x" onclick="importPaste()">Backup Import</button>
+<button class="g" id="oldBtn" onclick="importLocal()" style="display:none">Purana data import karo</button>
 </div>
+</div>
+
 <input type="file" id="pp" accept="image/*" style="display:none" onchange="setPic(this)">
 <div id="md"><div class="box" style="margin-top:80px">
 <div class="n" id="mt"></div>
@@ -58,43 +85,49 @@ button.g{background:#2e7d32} button.r{background:#c62828} button.x{background:#7
 <button class="g" onclick="okM()">OK</button>
 <button class="x" onclick="closeM()">Cancel</button>
 </div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-var LOW=10,cur=0,qm='';
+var CFG={apiKey:"AIzaSyDnHR-B-ZFS5rI4hHoiYjAn5lT2D1uMJL4",authDomain:"saad-medical-store-6126f.firebaseapp.com",projectId:"saad-medical-store-6126f",storageBucket:"saad-medical-store-6126f.firebasestorage.app",messagingSenderId:"737310909860",appId:"1:737310909860:web:5918cf7917ab8578cfcd31"};
+firebase.initializeApp(CFG);
+var auth=firebase.auth(),db=firebase.firestore();
+var ME=null,ROLE='',NAME='',MEDS=[],LOGS=[],USERS=[],LOW=10,cur='',qm='',started=false,unsub=[];
 var TY=['Syrup','Tablet','Capsule','Injection','Cream','Drops','Other'];
-var D=[],L=[];
-try{D=JSON.parse(localStorage.getItem('stock')||'[]')}catch(e){D=[]}
-try{L=JSON.parse(localStorage.getItem('stocklog')||'[]')}catch(e){L=[]}
-function nid(){return 'm'+Date.now()+'_'+Math.floor(Math.random()*1000000)}
-function td(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
-function mig(){D.forEach(function(m){if(!m.ppb||m.ppb<1)m.ppb=1;if(!m.tpp||m.tpp<1)m.tpp=1;if(!m.t)m.t='Other';if(!m.id)m.id=nid()})}
-mig();
-function save(){try{localStorage.setItem('stock',JSON.stringify(D));localStorage.setItem('stocklog',JSON.stringify(L))}catch(e){alert('Save nahi hua (jagah bhar gayi ho sakti hai)')}show()}
-function v(i){return document.getElementById(i).value}
-function gn(i){var e=document.getElementById(i);return e?(+e.value||0):0}
-function esc(s){return String(s).replace(/</g,'&lt;')}
+
+function $(i){return document.getElementById(i)}
+function v(i){return $(i).value}
+function gn(i){var e=$(i);return e?(+e.value||0):0}
+function esc(s){return String(s==null?'':s).replace(/</g,'&lt;')}
 function rs(x){return 'Rs. '+Math.round(x)}
+function td(d){d=d||new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2)}
 function isTab(t){return t=='Tablet'||t=='Capsule'}
 function mid(m){return isTab(m.t)?'patta':'piece'}
 function base(m){return m.t=='Capsule'?'capsule':'tablet'}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 function opts(sel){return TY.map(function(t){return '<option'+(t==sel?' selected':'')+'>'+t+'</option>'}).join('')}
+function isOwner(){return ROLE=='owner'}
+function FV(){return firebase.firestore.FieldValue}
+function getM(id){for(var i=0;i<MEDS.length;i++)if(MEDS[i].id==id)return MEDS[i];return null}
 function fmt(u,m){
- var bx=m.ppb*m.tpp,b=0,rem=u;
+ var tpp=m.tpp||1,bx=tpp*(m.ppb||1),b=0,rem=u;
  if(bx>1){b=Math.floor(u/bx);rem=u%bx}
- var p=Math.floor(rem/m.tpp),t=rem%m.tpp,o=[];
+ var p=Math.floor(rem/tpp),t=rem%tpp,o=[];
  if(b>0)o.push(b+' box');
  if(p>0)o.push(p+' '+mid(m));
  if(t>0)o.push(t+' '+base(m));
  return o.length?o.join(', '):'0'}
 function tyChg(){
  var tab=isTab(v('ty'));
- document.getElementById('tp').style.display=tab?'':'none';
- document.getElementById('pb').placeholder=tab?'Ek box mein kitne patte':'Ek box mein kitne piece (box nahi to 1)';
- document.getElementById('bp').placeholder='Khareed price (1 '+(tab?'patta':'piece')+' ki)';
- document.getElementById('sp').placeholder='Bechne ki price (1 '+(tab?'patta':'piece')+' ki)'}
-document.getElementById('ty').innerHTML=opts('Tablet');
-document.getElementById('ft').innerHTML='<option value="">Sab types</option>'+opts('');
+ $('tp').style.display=tab?'':'none';
+ $('pb').placeholder=tab?'Ek box mein kitne patte':'Ek box mein kitne piece (box nahi to 1)';
+ $('bp').placeholder='Khareed price (1 '+(tab?'patta':'piece')+' ki)';
+ $('sp').placeholder='Bechne ki price (1 '+(tab?'patta':'piece')+' ki)'}
+$('ty').innerHTML=opts('Tablet');
+$('ft').innerHTML='<option value="">Sab types</option>'+opts('');
 tyChg();
+
 function shrink(f,cb){
  var r=new FileReader();
  r.onload=function(){var im=new Image();
@@ -103,114 +136,227 @@ function shrink(f,cb){
    c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',0.6))};
   im.onerror=function(){cb('')};im.src=r.result};
  r.readAsDataURL(f)}
-function logE(k,m,u){
- var um=u/m.tpp;
- L.push({d:td(),k:k,id:m.id,n:m.n,q:fmt(u,m),u:u,
-  sale:k=='s'?um*m.p:0,
-  profit:k=='s'?um*(m.p-m.b):0,
-  cost:k=='a'?um*m.b:0})}
+
+// ---------- LOGIN ----------
+function login(){
+ $('lerr').textContent='';
+ auth.signInWithEmailAndPassword(v('em').trim(),v('pw')).catch(function(e){$('lerr').textContent='Login nahi hua: '+e.message})}
+function logout(){auth.signOut()}
+
+auth.onAuthStateChanged(function(u){
+ if(!u){ME=null;stop();$('app').style.display='none';$('login').style.display='block';return}
+ db.collection('users').doc(u.uid).get().then(function(doc){
+  var d=doc.exists?doc.data():{};
+  if(d.role!='owner'&&d.role!='staff')throw new Error('access');
+  ME=u.uid;ROLE=d.role;NAME=d.name||u.email;
+  $('login').style.display='none';$('app').style.display='block';
+  $('who').textContent=NAME+' ('+(isOwner()?'Owner':'Staff')+')';
+  $('adm').style.display=isOwner()?'block':'none';
+  $('tools').style.display=isOwner()?'block':'none';
+  $('oldBtn').style.display=(isOwner()&&localStorage.getItem('stock')&&!localStorage.getItem('imported'))?'inline-block':'none';
+  start();
+ }).catch(function(e){
+  alert(e.message=='access'||e.code=='permission-denied'?'Aap ka access nahi hai, owner se kahein':e.message);
+  auth.signOut()})});
+
+// ---------- LIVE DATA ----------
+function err(e){$('sum').innerHTML='<span style="color:#c62828">Data load nahi hua: '+esc(e.message)+'</span>'}
+function start(){
+ if(started)return;started=true;
+ unsub.push(db.collection('meds').onSnapshot(function(s){MEDS=s.docs.map(function(d){return Object.assign({id:d.id},d.data())});show()},err));
+ unsub.push(db.collection('logs').orderBy('ts','desc').limit(2000).onSnapshot(function(s){LOGS=s.docs.map(function(d){return Object.assign({id:d.id},d.data())});show()},err));
+ if(isOwner())unsub.push(db.collection('users').onSnapshot(function(s){USERS=s.docs.map(function(d){return Object.assign({id:d.id},d.data())});show()},err));
+}
+function stop(){unsub.forEach(function(f){f()});unsub=[];started=false;MEDS=[];LOGS=[];USERS=[]}
+
+// ---------- ADD / SELL / STOCK ----------
+function logBatch(b,k,m,u){
+ var tpp=m.tpp||1,um=u/tpp;
+ b.set(db.collection('logs').doc(),{k:k,mid:m.id,n:m.n,q:fmt(u,m),u:u,d:td(),by:NAME,
+  sale:k=='s'?um*(m.p||0):0,profit:k=='s'?um*((m.p||0)-(m.b||0)):0,cost:k=='a'?um*(m.b||0):0,
+  ts:FV().serverTimestamp()})}
 function addMed(){
  var n=v('nm').trim(); if(!n){alert('Naam likho');return}
  var t=v('ty'),tab=isTab(t),pb=+v('pb')||1,tp=tab?(+v('tp')||1):1,qb=+v('qb')||0;
- var f=document.getElementById('ph').files[0];
+ var f=$('ph').files[0];
  function go(img){
-  var m={id:nid(),n:n,t:t,ppb:pb,tpp:tp,a:qb*pb*tp,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex'),img:img||''};
-  D.push(m);
-  if(m.a>0)logE('a',m,m.a);
-  ['nm','qb','pb','tp','bp','sp','ex','ph'].forEach(function(i){document.getElementById(i).value=''});
-  save()}
+  var ref=db.collection('meds').doc();
+  var m={id:ref.id,n:n,t:t,ppb:pb,tpp:tp,a:qb*pb*tp,s:0,b:+v('bp')||0,p:+v('sp')||0,e:v('ex'),img:img||'',lim:LOW};
+  var data=Object.assign({},m);delete data.id;
+  var b=db.batch();b.set(ref,data);if(m.a>0)logBatch(b,'a',m,m.a);
+  b.commit().then(function(){['nm','qb','pb','tp','bp','sp','ex','ph'].forEach(function(i){$(i).value=''});alert('Dawai add ho gayi')})
+   .catch(function(e){alert(e.message)})}
  if(f)shrink(f,go);else go('')}
-function pic(i){cur=i;document.getElementById('pp').click()}
-function setPic(el){var f=el.files[0];if(!f)return;
- shrink(f,function(d){if(d){D[cur].img=d;save()}});el.value=''}
-function setT(i,t){D[i].t=t;if(!isTab(t)&&D[i].tpp>1){D[i].a=Math.round(D[i].a/D[i].tpp);D[i].s=Math.round(D[i].s/D[i].tpp);D[i].tpp=1}save()}
-function openQ(i,mode){
- cur=i;qm=mode;var m=D[i],bx=m.ppb*m.tpp,f='';
+function openQ(id,mode){
+ var m=getM(id); if(!m)return;
+ cur=id;qm=mode;var tpp=m.tpp||1,bx=tpp*(m.ppb||1),f='';
  if(bx>1)f+='<input id="q1" type="number" min="0" placeholder="Box">';
  f+='<input id="q2" type="number" min="0" placeholder="'+cap(mid(m))+'">';
- if(m.tpp>1)f+='<input id="q3" type="number" min="0" placeholder="'+cap(base(m))+'">';
- document.getElementById('mt').innerHTML=(mode=='sell'?'Kitni bik gayi? ':'Kitna maal aaya? ')+esc(m.n);
- document.getElementById('mi').innerHTML='Abhi bachi: '+fmt(m.a-m.s,m);
- document.getElementById('mf').innerHTML=f;
- document.getElementById('md').style.display='block'}
-function closeM(){document.getElementById('md').style.display='none'}
+ if(tpp>1)f+='<input id="q3" type="number" min="0" placeholder="'+cap(base(m))+'">';
+ $('mt').textContent=(mode=='sell'?'Kitni bik gayi? ':'Kitna maal aaya? ')+m.n;
+ $('mi').textContent='Abhi bachi: '+fmt(m.a-m.s,m);
+ $('mf').innerHTML=f;$('md').style.display='block'}
+function closeM(){$('md').style.display='none'}
 function okM(){
- var m=D[cur],bx=m.ppb*m.tpp;
- var u=gn('q1')*bx+gn('q2')*m.tpp+gn('q3');
+ var m=getM(cur); if(!m)return;
+ var tpp=m.tpp||1,bx=tpp*(m.ppb||1);
+ var u=gn('q1')*bx+gn('q2')*tpp+gn('q3');
  if(u<=0){alert('Tadaad likho');return}
+ var b=db.batch(),mref=db.collection('meds').doc(m.id);
  if(qm=='sell'){
   if(u>m.a-m.s){alert('Itna stock nahi hai!');return}
-  m.s+=u;logE('s',m,u)}
- else{m.a+=u;logE('a',m,u)}
- closeM();save();
- if(m.a-m.s<=0)alert(m.n+' khatam ho gayi. Khareedni Hai list mein aa gayi.')}
-function sell(i){openQ(i,'sell')}
-function add(i){openQ(i,'add')}
+  b.update(mref,{s:FV().increment(u)});logBatch(b,'s',m,u);
+ }else{
+  b.update(mref,{a:FV().increment(u)});logBatch(b,'a',m,u);
+ }
+ var left=m.a-m.s-(qm=='sell'?u:0);
+ b.commit().then(function(){closeM();if(qm=='sell'&&left<=0)alert(m.n+' khatam ho gayi. Khareedni Hai list mein aa gayi.')})
+  .catch(function(e){alert(e.message)})}
+function sell(id){openQ(id,'sell')}
+function add(id){openQ(id,'add')}
 function undoL(){
- if(!L.length){alert('Koi entry nahi hai');return}
- var e=L[L.length-1];
- var m=D.filter(function(x){return x.id==e.id})[0];
- if(!m){alert('Wo dawai delete ho chuki hai');L.pop();save();return}
+ if(!isOwner())return;
+ var e=LOGS[0]; if(!e){alert('Koi entry nahi hai');return}
  if(!confirm('Undo karna hai? '+(e.k=='s'?'Becha: ':'Aaya: ')+e.n+' '+e.q))return;
- if(e.k=='s'){m.s=Math.max(0,m.s-e.u)}
- else{if(m.a-e.u<m.s){alert('Undo nahi ho sakta, ye maal bik chuka hai');return}m.a-=e.u}
- L.pop();save()}
-function packSet(i){
- var m=D[i],tab=isTab(m.t);
- var pb=+prompt('Ek box mein kitne '+mid(m)+'?',m.ppb);
- if(!pb||pb<1)return;
- var tp=m.tpp;
- if(tab){tp=+prompt('Ek patte mein kitni '+base(m)+'?',m.tpp);if(!tp||tp<1)return}
- if(tp!=m.tpp){m.a=Math.round(m.a*tp/m.tpp);m.s=Math.round(m.s*tp/m.tpp)}
- m.ppb=pb;m.tpp=tp;save()}
-function del(i){if(confirm(D[i].n+' delete karni hai?')){D.splice(i,1);save()}}
+ var m=getM(e.mid),b=db.batch();
+ if(m){
+  if(e.k=='s')b.update(db.collection('meds').doc(m.id),{s:FV().increment(-e.u)});
+  else{
+   if(m.a-e.u<m.s){alert('Undo nahi ho sakta, ye maal bik chuka hai');return}
+   b.update(db.collection('meds').doc(m.id),{a:FV().increment(-e.u)});
+  }
+ }
+ b.delete(db.collection('logs').doc(e.id));
+ b.commit().catch(function(x){alert(x.message)})}
+
+// ---------- CARD ACTIONS ----------
+function setT(id,t){
+ var m=getM(id),up={t:t};
+ if(!isTab(t)&&(m.tpp||1)>1){var old=m.tpp;up.a=Math.round(m.a/old);up.s=Math.round(m.s/old);up.tpp=1}
+ db.collection('meds').doc(id).update(up).catch(function(e){alert(e.message)})}
+function packSet(id){
+ var m=getM(id); if(!m)return;var old=m.tpp||1;
+ var pb=+prompt('Ek box mein kitne '+mid(m)+'?',m.ppb||1); if(!pb||pb<1)return;
+ var tp=old; if(isTab(m.t)){tp=+prompt('Ek patte mein kitni '+base(m)+'?',old); if(!tp||tp<1)return}
+ db.collection('meds').doc(id).update({ppb:pb,tpp:tp,a:Math.round(m.a*tp/old),s:Math.round(m.s*tp/old)})
+  .catch(function(e){alert(e.message)})}
+function setLim(id){
+ var m=getM(id);var x=+prompt('Kitne '+mid(m)+' par KAM STOCK alert aaye?',m.lim||LOW); if(!x||x<1)return;
+ db.collection('meds').doc(id).update({lim:x}).catch(function(e){alert(e.message)})}
+function pic(id){cur=id;$('pp').click()}
+function setPic(el){var f=el.files[0];if(!f)return;
+ shrink(f,function(d){if(d)db.collection('meds').doc(cur).update({img:d}).catch(function(e){alert(e.message)})});el.value=''}
+function delMed(id){
+ if(!isOwner())return;var m=getM(id);
+ if(confirm(m.n+' delete karni hai?'))db.collection('meds').doc(id).delete().catch(function(e){alert(e.message)})}
+
+// ---------- STAFF (owner only) ----------
+function addStaff(){
+ var nm=v('sn').trim(),em=v('se').trim(),pw=v('sps');
+ if(!nm||!em||pw.length<6){alert('Naam, email aur 6 ya zyada character ka password likho');return}
+ var sec=firebase.apps.filter(function(a){return a.name=='sec'})[0]||firebase.initializeApp(CFG,'sec');
+ var sa=sec.auth(),uid='';
+ sa.createUserWithEmailAndPassword(em,pw)
+  .then(function(c){uid=c.user.uid;return sa.signOut()})
+  .then(function(){return db.collection('users').doc(uid).set({role:'staff',name:nm,email:em})})
+  .then(function(){['sn','se','sps'].forEach(function(i){$(i).value=''});alert('Staff ban gaya: '+nm)})
+  .catch(function(e){alert('Staff nahi bana: '+e.message)})}
+function togU(id){
+ var u=USERS.filter(function(x){return x.id==id})[0]; if(!u)return;
+ db.collection('users').doc(id).update({role:u.role=='disabled'?'staff':'disabled'}).catch(function(e){alert(e.message)})}
+
+// ---------- DAY BOX ----------
 function dayBox(){
- var he=document.getElementById('hd'),d=(he&&he.value)?he.value:td();
+ var d=($('hd')&&$('hd').value)?$('hd').value:td();
  var ss=0,pp=0,cc=0,sl='',al='';
- L.forEach(function(e){
+ LOGS.forEach(function(e){
   if(e.d!=d)return;
-  if(e.k=='s'){ss+=e.sale;pp+=e.profit;sl+=esc(e.n)+': '+e.q+'<br>'}
-  else{cc+=e.cost;al+=esc(e.n)+': '+e.q+'<br>'}});
- var pc=pp<0?'#c62828':'#2e7d32';
- document.getElementById('day').innerHTML=
-  '<div class="n">'+(d==td()?'Aaj ka hisaab':'Hisaab: '+d)+'</div>'
+  if(e.k=='s'){ss+=e.sale||0;pp+=e.profit||0;sl+=esc(e.n)+': '+esc(e.q)+'<br>'}
+  else{cc+=e.cost||0;al+=esc(e.n)+': '+esc(e.q)+'<br>'}});
+ $('day').innerHTML='<div class="n">'+(d==td()?'Aaj ka hisaab':'Hisaab: '+d)+'</div>'
   +'<input id="hd" type="date" value="'+d+'" onchange="show()">'
-  +'<div style="margin:6px 0">Sale: <b>'+rs(ss)+'</b></div>'
-  +'<div style="margin:6px 0">Profit: <b style="color:'+pc+'">'+rs(pp)+'</b></div>'
-  +'<div style="margin:6px 0">Stock add hua (khareed ke hisaab se): <b>'+rs(cc)+'</b></div>'
+  +'<div>Sale: <b>'+rs(ss)+'</b></div>'
+  +(isOwner()?'<div>Profit: <b style="color:'+(pp<0?'#c62828':'#2e7d32')+'">'+rs(pp)+'</b></div><div>Stock add hua (khareed): <b>'+rs(cc)+'</b></div>':'')
   +(sl?'<div class="s" style="margin-top:8px"><b>Bika:</b><br>'+sl+'</div>':'')
-  +(al?'<div class="s" style="margin-top:8px"><b>Aaya:</b><br>'+al+'</div>':'')}
+  +(al&&isOwner()?'<div class="s" style="margin-top:8px"><b>Aaya:</b><br>'+al+'</div>':'')}
+
+// ---------- SHOW ----------
 function show(){
- var q=v('q').toLowerCase(),ft=v('ft'),h='',buy='',nb=0,low=0,val=0,today=td();
- D.forEach(function(m,i){
-  var r=m.a-m.s,isLow=(r/m.tpp)<=LOW; val+=r/m.tpp*m.b;
-  if(isLow){low++;nb++;
-   buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> ('+(m.t||'Other')+') | bachi: '+fmt(r,m)+'<br><button class="g" onclick="add('+i+')">Khareed Liya</button></div>'}
-  if(m.n.toLowerCase().indexOf(q)<0)return;
+ if(!ME)return;
+ var q=v('q').toLowerCase(),ft=v('ft'),today=td(),h='',buy='',nb=0,low=0,val=0,ex='',ne=0;
+ MEDS.forEach(function(m){
+  var tpp=m.tpp||1,r=m.a-m.s,lim=m.lim||LOW,isLow=(r/tpp)<=lim;
+  val+=r/tpp*(m.b||0);
+  if(isLow){nb++;low++;buy+='<div class="s" style="margin:8px 0"><b>'+esc(m.n)+'</b> | bachi: '+fmt(r,m)+'<br><button class="g" onclick="add(\''+m.id+'\')">Khareed Liya</button></div>'}
+  if(m.e){var days=Math.floor((new Date(m.e)-new Date(today))/86400000);
+   if(days<=60){ne++;ex+='<div class="s">'+esc(m.n)+' | '+m.e+(days<0?' <b style="color:#c62828">EXPIRED</b>':' ('+days+' din baki)')+'</div>'}}
+  if(q&&m.n.toLowerCase().indexOf(q)<0)return;
   if(ft&&(m.t||'Other')!=ft)return;
-  var exp=m.e&&m.e<today?' <b style="color:#c62828">(EXPIRED)</b>':(m.e?' | Expiry: '+m.e:'');
-  var th=m.img?'<img class="th" src="'+m.img+'" onclick="pic('+i+')">':'<div class="th" onclick="pic('+i+')">+ Photo</div>';
-  var pk=(m.ppb*m.tpp>1)?'<div class="s">Pack: 1 box = '+m.ppb+' '+mid(m)+(m.tpp>1?', 1 '+mid(m)+' = '+m.tpp+' '+base(m):'')+'</div>':'';
-  h+='<div class="box '+(isLow?'low':'ok')+'"><div class="row">'+th+'<div style="flex:1">'
-  +'<div class="n">'+esc(m.n)+'</div>'
-  +'<select class="tsel" onchange="setT('+i+',this.value)">'+opts(m.t||'Other')+'</select>'
-  +'</div></div>'
-  +'<div class="s">Aayi: '+fmt(m.a,m)+'</div><div class="s">Bik gayi: '+fmt(m.s,m)+'</div>'
-  +'<div class="s"><b>Bachi: '+fmt(r,m)+'</b>'+(isLow?' (KAM HAI)':'')+'</div>'
+  var exp=(m.e&&m.e<today)?' <b style="color:#c62828">(EXPIRED)</b>':'';
+  var th=m.img?'<img class="th" src="'+m.img+'" onclick="pic(\''+m.id+'\')">':'<div class="th" onclick="pic(\''+m.id+'\')">+ Photo</div>';
+  var pk=(tpp*(m.ppb||1)>1)?'<div class="s">Pack: 1 box = '+m.ppb+' '+mid(m)+(tpp>1?', 1 '+mid(m)+' = '+tpp+' '+base(m):'')+'</div>':'';
+  h+='<div class="box '+(isLow?'low':'ok')+'"><div class="row">'+th+'<div style="flex:1"><div class="n">'+esc(m.n)+'</div>'
+  +'<select class="tsel" onchange="setT(\''+m.id+'\',this.value)">'+opts(m.t||'Other')+'</select></div></div>'
+  +'<div class="s">Aayi: '+fmt(m.a,m)+' | Bik gayi: '+fmt(m.s,m)+'</div>'
+  +'<div class="s"><b>Bachi: '+fmt(r,m)+'</b>'+(isLow?' (KAM HAI, limit '+lim+')':'')+'</div>'
   +pk
-  +'<div class="s">Khareed: Rs.'+m.b+' | Bechne: Rs.'+m.p+' (1 '+mid(m)+')'+exp+'</div>'
-  +'<button class="g" onclick="sell('+i+')">Becho</button><button onclick="add('+i+')">Stock Add</button><button class="x" onclick="packSet('+i+')">Pack</button><button class="r" onclick="del('+i+')">Delete</button></div>'});
- document.getElementById('list').innerHTML=h;
- document.getElementById('buy').innerHTML=nb?'<div class="n" style="color:#c62828">Khareedni Hai ('+nb+')</div>'+buy:'<div class="s">Sab stock theek hai ✅</div>';
- document.getElementById('sum').innerHTML='Total dawaiyan: <b>'+D.length+'</b> | Kam stock: <b style="color:#c62828">'+low+'</b><br>Bacha hua stock (khareed ke hisaab se): <b>'+rs(val)+'</b>';
- dayBox()}
-function backup(){var t=JSON.stringify({D:D,L:L});
- if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){alert('Backup copy ho gaya. Kisi note ya WhatsApp pe paste karke save kar lo.')})}else{prompt('Ye copy karo:',t)}}
-function restore(){var t=prompt('Backup yahan paste karo:'); if(!t)return;
+  +(isOwner()?'<div class="s">Khareed: Rs.'+m.b+' | Bechne: Rs.'+m.p+' (1 '+mid(m)+')'+(m.e?' | Expiry: '+m.e:'')+exp+'</div>'
+            :'<div class="s">'+(m.e?'Expiry: '+m.e:'')+exp+'</div>')
+  +'<button class="g" onclick="sell(\''+m.id+'\')">Becho</button>'
+  +'<button onclick="add(\''+m.id+'\')">Stock Add</button>'
+  +'<button class="x" onclick="packSet(\''+m.id+'\')">Pack</button>'
+  +'<button class="x" onclick="setLim(\''+m.id+'\')">Limit</button>'
+  +(isOwner()?'<button class="r" onclick="delMed(\''+m.id+'\')">Delete</button>':'')+'</div>'});
+ $('list').innerHTML=h;
+ $('buy').innerHTML=nb?'<div class="n" style="color:#c62828">Khareedni Hai ('+nb+')</div>'+buy:'<div class="s">Sab stock theek hai ✅</div>';
+ $('exp').innerHTML='<b>Expiry alert (60 din)</b>'+(ne?ex:'<div class="s">Koi dawai expire hone wali nahi</div>');
+ $('sum').innerHTML='Total dawaiyan: <b>'+MEDS.length+'</b> | Kam stock: <b style="color:#c62828">'+low+'</b>'
+  +(isOwner()?'<br>Stock ki value (khareed): <b>'+rs(val)+'</b>':'');
+ dayBox();
+ if(isOwner()){
+  var st='';
+  USERS.forEach(function(u){if(u.role=='owner')return;
+   st+='<div class="s" style="margin:6px 0">'+esc(u.name)+' ('+esc(u.email||'')+') - '+(u.role=='disabled'?'<b style="color:#c62828">Band</b>':'Active')
+    +' <button class="x" onclick="togU(\''+u.id+'\')">'+(u.role=='disabled'?'Chalu karo':'Band karo')+'</button></div>'});
+  $('stf').innerHTML=st||'<div class="s">Abhi koi staff nahi</div>';
+ }}
+
+// ---------- BACKUP / IMPORT (owner) ----------
+function backup(){
+ var t=JSO.stringify({D:MEDS,L:LOGS});
+ if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){alert('Backup copy ho gaya. WhatsApp ya notes mein save kar lo.')})}
+ else{prompt('Ye copy karo:',t)}}
+function importPaste(){
+ var t=prompt('Backup yahan paste karo:'); if(!t)return;
  try{var o=JSON.parse(t);
-  if(Array.isArray(o)){D=o}else{D=o.D||[];L=o.L||[]}
-  mig();save()}catch(e){alert('Galat backup')}}
-show();
+  if(Array.isArray(o))doImport(o,[]);else doImport(o.D||[],o.L||[]);
+ }catch(e){alert('Galat backup')}}
+function importLocal(){
+ var D0,L0;
+ try{D0=JSON.parse(localStorage.getItem('stock')||'[]');L0=JSON.parse(localStorage.getItem('stocklog')||'[]')}
+ catch(e){alert('Purana data nahi padha ja saka');return}
+ localStorage.setItem('imported','1');$('oldBtn').style.display='none';
+ doImport(D0,L0)}
+function doImport(D0,L0){
+ if(!isOwner())return;
+ var ops=[];
+ D0.forEach(function(o){
+  var id=String(o.id||('m'+Date.now()+Math.floor(Math.random()*100000))).replace(/[^A-Za-z0-9_-]/g,'_');
+  ops.push({ref:db.collection('meds').doc(id),data:{n:o.n||'',t:o.t||'Other',ppb:o.ppb||1,tpp:o.tpp||1,a:o.a||0,s:o.s||0,b:o.b||0,p:o.p||0,e:o.e||'',img:o.img||'',lim:LOW}})});
+ L0.forEach(function(o){
+  ops.push({ref:db.collection('logs').doc(),data:{k:o.k,mid:String(o.mid||o.id||''),n:o.n||'',q:o.q||'',u:o.u||0,d:o.d||td(),by:'import',
+   sale:o.sale||0,profit:o.profit||0,cost:o.cost||0,
+   ts:firebase.firestore.Timestamp.fromDate(new Date((o.d||td())+'T12:00:00'))}})});
+ if(!ops.length){alert('Import ke liye kuch nahi mila');return}
+ var i=0;
+ (function next(){
+  var chunk=ops.slice(i,i+400);i+=400;
+  if(!chunk.length){alert('Import ho gaya: '+D0.length+' dawaiyan, '+L0.length+' entries');return}
+  var b=db.batch();chunk.forEach(function(x){b.set(x.ref,x.data)});
+  b.commit().then(next).catch(function(e){alert('Import error: '+e.message)})
+ })();
+}
 </script>
 </body>
  </html>
+ 
